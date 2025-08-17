@@ -1,115 +1,116 @@
-# app.py
 import streamlit as st
-from PIL import Image
 import numpy as np
-import mediapipe as mp
+from PIL import Image
+from skimage import filters, transform
 
-# ====== Configurações do Streamlit ======
-st.set_page_config(page_title="💎 VisageScore", layout="centered")
+# --------------------------
+# Funções de análise
+# --------------------------
 
-# ====== Funções de análise facial ======
-mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, refine_landmarks=True)
+def calcular_simetria(img_array):
+    # Corta ao meio e compara esquerda x direita
+    h, w, _ = img_array.shape
+    metade = w // 2
+    esquerda = img_array[:, :metade]
+    direita = np.fliplr(img_array[:, metade:])
+    simetria = np.mean(np.abs(esquerda - direita))
+    return max(0, 100 - simetria)
 
-def analisar_beleza(img):
-    img_rgb = np.array(img.convert('RGB'))
-    h, w, _ = img_rgb.shape
 
-    resultados = face_mesh.process(img_rgb)
-    if not resultados.multi_face_landmarks:
-        return None, ["❌ Nenhum rosto detectado."]
+def calcular_nitidez(img_array):
+    # Usa o gradiente de Sobel como medida de nitidez
+    gray = np.mean(img_array, axis=2)
+    sobel = filters.sobel(gray)
+    return float(np.mean(sobel) * 100)
 
-    rosto = resultados.multi_face_landmarks[0]
-    pontos = [(int(lm.x*w), int(lm.y*h)) for lm in rosto.landmark]
 
-    # Pontos principais
-    olho_esq, olho_dir = pontos[33], pontos[263]
-    sobrancelha_esq, sobrancelha_dir = pontos[105], pontos[334]
-    nariz_top, nariz_base = pontos[1], pontos[168]
-    queixo_esq, queixo_dir = pontos[152], pontos[234]
-    boca_sup, boca_inf = pontos[13], pontos[14]
+def calcular_luminosidade(img_array):
+    # Brilho médio
+    return float(np.mean(img_array) / 2.55)
 
-    # Medidas e proporções
-    distancia_olhos = np.linalg.norm(np.array(olho_esq) - np.array(olho_dir))
-    altura_nariz = np.linalg.norm(np.array(nariz_top) - np.array(nariz_base))
-    largura_queixo = np.linalg.norm(np.array(queixo_esq) - np.array(queixo_dir))
-    altura_labios = np.linalg.norm(np.array(boca_sup) - np.array(boca_inf))
 
-    inclin_sobrancelha_esq = np.degrees(np.arctan2(sobrancelha_esq[1]-olho_esq[1], sobrancelha_esq[0]-olho_esq[0]))
-    inclin_sobrancelha_dir = np.degrees(np.arctan2(sobrancelha_dir[1]-olho_dir[1], sobrancelha_dir[0]-olho_dir[0]))
-    sim_sobrancelha = max(0, 1 - abs(inclin_sobrancelha_esq - inclin_sobrancelha_dir)/30)
+def calcular_proporcoes(img_array):
+    # Aproximação de proporções faciais (sem landmarks)
+    h, w, _ = img_array.shape
+    proporcao_hw = h / w
+    ideal = 1.618  # número áureo
+    score = 100 - (abs(proporcao_hw - ideal) * 100)
+    return max(0, min(score, 100))
 
-    inclinacao_rosto = np.degrees(np.arctan2(queixo_dir[1]-queixo_esq[1], queixo_dir[0]-queixo_esq[0]))
 
-    # Valores de referência (pode ajustar)
-    ref_distancia_olhos = w*0.3
-    ref_altura_nariz = w*0.15
-    ref_largura_queixo = distancia_olhos
-    ref_sim_sobrancelha = 0.8
-    ref_inclinacao_rosto = 0
+# --------------------------
+# App Streamlit
+# --------------------------
 
-    alertas = []
+st.set_page_config(page_title="VisageScore 💎", layout="centered")
 
-    if distancia_olhos < ref_distancia_olhos:
-        alertas.append(f"Distância olhos abaixo da média: {distancia_olhos:.1f}px")
-    if altura_nariz < ref_altura_nariz:
-        alertas.append(f"Altura do nariz abaixo da média: {altura_nariz:.1f}px")
-    if largura_queixo < ref_largura_queixo:
-        alertas.append(f"Largura do queixo abaixo da média: {largura_queixo:.1f}px")
-    if sim_sobrancelha < ref_sim_sobrancelha:
-        alertas.append(f"Sobrancelhas desiguais (simetria: {sim_sobrancelha:.2f})")
-    if abs(inclinacao_rosto) > ref_inclinacao_rosto+10:
-        alertas.append(f"Inclinação geral do rosto fora da média: {inclinacao_rosto:.1f}°")
+st.title("VisageScore 💎")
+st.write("Avalie sua foto com análise de estética facial (versão gratuita e premium).")
 
-    if not alertas:
-        alertas.append("✅ Todos os valores estão na média ou acima dela!")
+aba = st.sidebar.radio("Escolha uma seção:", ["Análise", "Premium (paga)", "Feedback"])
 
-    # Nota de beleza (0-10)
-    nota = 10 - len([a for a in alertas if "abaixo" in a or "fora" in a])
-    nota = max(0, min(10, nota))
+# --------------------------
+# Aba 1: Gratuita
+# --------------------------
+if aba == "Análise":
+    st.header("Versão Gratuita 🟢")
 
-    return nota, alertas
+    uploaded_file = st.file_uploader("Envie uma foto (frontal, boa iluminação)", type=["jpg", "jpeg", "png"])
 
-# ====== Interface ======
-st.title("💎 VisageScore")
-
-# Abas
-abas = st.tabs(["Grátis", "Versão Paga", "Feedback"])
-
-with abas[0]:
-    st.header("Versão Gratuita")
-    st.write("Faça upload da sua foto para análise básica.")
-    uploaded_file = st.file_uploader("Escolha uma imagem", type=["png", "jpg", "jpeg"])
     if uploaded_file:
-        img = Image.open(uploaded_file)
-        st.image(img, caption="Sua foto", use_column_width=True)
-        nota, alertas = analisar_beleza(img)
-        if nota is None:
-            st.warning(alertas[0])
-        else:
-            st.subheader(f"Nota de Beleza: {nota}/10")
-            for a in alertas:
-                st.write(a)
+        img = Image.open(uploaded_file).convert("RGB")
+        img_array = np.array(img)
 
-with abas[1]:
-    st.header("Versão Paga")
-    st.write("Receba análise completa, com relatórios detalhados e feedback avançado.")
-    st.info("💳 Pagamento futuro aqui (simulação)")
-    uploaded_file = st.file_uploader("Escolha uma imagem para análise completa", key="paga")
+        st.image(img, caption="Foto enviada", use_column_width=True)
+
+        # Análises básicas
+        sim = calcular_simetria(img_array)
+        nit = calcular_nitidez(img_array)
+        lum = calcular_luminosidade(img_array)
+
+        st.subheader("Resultados:")
+        st.write(f"🔹 **Simetria facial**: {sim:.2f}/100")
+        st.write(f"🔹 **Nitidez da imagem**: {nit:.2f}/100")
+        st.write(f"🔹 **Luminosidade**: {lum:.2f}/100")
+
+        score = (sim + nit + lum) / 3
+        st.success(f"💡 Sua nota estética (versão gratuita): **{score:.2f}/100**")
+
+# --------------------------
+# Aba 2: Premium
+# --------------------------
+elif aba == "Premium (paga)":
+    st.header("Versão Premium 🔵")
+
+    st.info("🔒 Área Premium: desbloqueie análises avançadas após pagamento.")
+
+    uploaded_file = st.file_uploader("Envie uma foto para análise avançada", type=["jpg", "jpeg", "png"])
+
     if uploaded_file:
-        img = Image.open(uploaded_file)
-        st.image(img, caption="Sua foto", use_column_width=True)
-        nota, alertas = analisar_beleza(img)
-        if nota is None:
-            st.warning(alertas[0])
-        else:
-            st.subheader(f"Nota de Beleza Completa: {nota}/10")
-            for a in alertas:
-                st.write(a)
-            st.success("Relatório completo disponível!")
+        img = Image.open(uploaded_file).convert("RGB")
+        img_array = np.array(img)
 
-with abas[2]:
-    st.header("Feedback")
-    st.write("Envie seu feedback ou reviews.")
-    st.text("Email para contato: seuemail@exemplo.com")
-    st.text_area("Deixe seu comentário ou review aqui:")
+        st.image(img, caption="Foto enviada", use_column_width=True)
+
+        # Análises premium
+        sim = calcular_simetria(img_array)
+        nit = calcular_nitidez(img_array)
+        lum = calcular_luminosidade(img_array)
+        prop = calcular_proporcoes(img_array)
+
+        st.subheader("Resultados Premium:")
+        st.write(f"🔹 **Simetria facial**: {sim:.2f}/100")
+        st.write(f"🔹 **Nitidez da imagem**: {nit:.2f}/100")
+        st.write(f"🔹 **Luminosidade**: {lum:.2f}/100")
+        st.write(f"🔹 **Proporções faciais (áurea)**: {prop:.2f}/100")
+
+        score = (sim + nit + lum + prop) / 4
+        st.success(f"💎 Sua nota estética premium: **{score:.2f}/100**")
+
+# --------------------------
+# Aba 3: Feedback
+# --------------------------
+elif aba == "Feedback":
+    st.header("Feedback 📝")
+    st.write("📧 Entre em contato: **seuemail@exemplo.com**")
+    st.write("⭐ Deixe aqui sua opinião! (em breve reviews serão exibidas)")
