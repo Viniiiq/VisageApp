@@ -1,89 +1,90 @@
 import streamlit as st
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-# -------------------------------
-# Configuração da página
-# -------------------------------
-st.set_page_config(page_title="💎 VisageScore", layout="wide")
+# --------------------------
+# Configuração inicial
+# --------------------------
+st.set_page_config(page_title="VisageApp", layout="centered")
 
-# -------------------------------
-# Tema claro/escuro (simples)
-# -------------------------------
-theme = st.sidebar.radio("Tema", ["Claro", "Escuro"])
-if theme == "Escuro":
-    plt.style.use("dark_background")
-else:
-    plt.style.use("default")
+# --------------------------
+# Tema Claro/Escuro
+# --------------------------
+if "theme" not in st.session_state:
+    st.session_state.theme = "light"
 
-# -------------------------------
-# Abas principais
-# -------------------------------
-aba = st.sidebar.radio("Navegação", ["🏠 Principal", "💎 Premium", "✉️ Feedback"])
+def toggle_theme():
+    st.session_state.theme = "dark" if st.session_state.theme == "light" else "light"
 
-# -------------------------------
-# Aba Principal
-# -------------------------------
-if aba == "🏠 Principal":
-    st.title("💎 VisageScore - Versão Gratuita")
-    st.write("Faça upload de uma foto para receber uma análise simples.")
+theme_colors = {
+    "light": {"bg": "#FFFFFF", "text": "#000000"},
+    "dark": {"bg": "#111111", "text": "#FFFFFF"}
+}
 
-    uploaded_file = st.file_uploader("Envie sua foto", type=["jpg", "jpeg", "png"])
-    if uploaded_file:
-        st.image(uploaded_file, caption="Sua foto", use_column_width=True)
-        st.success("✅ Foto recebida! (Na versão gratuita a análise é limitada.)")
+st.markdown(
+    f"""
+    <style>
+    body {{ background-color: {theme_colors[st.session_state.theme]['bg']}; color: {theme_colors[st.session_state.theme]['text']}; }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-# -------------------------------
-# Aba Premium
-# -------------------------------
-elif aba == "💎 Premium":
-    st.title("💎 VisageScore - Versão Premium")
-    st.write("Aqui estão métricas avançadas baseadas em estética facial:")
+st.button("Mudar Tema", on_click=toggle_theme)
 
-    # Exemplo de valores fictícios (0 a 10)
-    metricas = {
-        "Canthal Tilt": 7,
-        "Jawline": 8,
-        "Cheekbones": 6,
-        "Eye Spacing": 7,
-        "Facial Symmetry": 9,
-        "Skin Quality": 8
-    }
+# --------------------------
+# Upload da Foto
+# --------------------------
+st.header("Upload da sua foto")
 
-    categorias = list(metricas.keys())
-    valores = list(metricas.values())
+uploaded_file = st.file_uploader("Escolha uma foto", type=["png","jpg","jpeg"])
 
-    # Fechar o gráfico no círculo
-    valores += valores[:1]
-    categorias += categorias[:1]
+if uploaded_file:
+    st.image(uploaded_file, caption="Sua foto", use_column_width=True)
+    
+    # --------------------------
+    # Checar versão
+    # --------------------------
+    premium_user = st.checkbox("Usuário Premium")
 
-    # Radar chart
-    angulos = np.linspace(0, 2 * np.pi, len(categorias), endpoint=False).tolist()
-    angulos += angulos[:1]
+    # Simulação de processamento de foto:
+    if premium_user:
+        # Valores detalhados para gráfico de teia
+        categorias = ['Simetria', 'Proporção', 'Tom de Pele', 'Sorriso', 'Olhos', 'Cabelo']
+        valores = np.random.randint(50, 100, size=len(categorias))  # aqui você coloca valores reais do processamento
+        st.success("Versão Premium: valores detalhados obtidos!")
+    else:
+        # Versão gratuita: apenas uma nota simples
+        categorias = ['Nota']
+        valores = [np.random.randint(60, 90)]  # nota simplificada
+        st.info(f"Versão gratuita: sua nota é {valores[0]}")
+
+    # --------------------------
+    # Gráfico de Teia Seguro
+    # --------------------------
+    N = len(categorias)
+    angulos = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+    valores_circular = valores + [valores[0]]  # fecha o gráfico
+    angulos_circular = angulos + [angulos[0]]
 
     fig, ax = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
-    ax.plot(angulos, valores, linewidth=2, linestyle='solid')
-    ax.fill(angulos, valores, alpha=0.25)
-
-    ax.set_xticks(angulos[:-1])
+    ax.plot(angulos_circular, valores_circular, linewidth=2, linestyle='solid')
+    ax.fill(angulos_circular, valores_circular, alpha=0.25)
+    ax.set_xticks(angulos)
     ax.set_xticklabels(categorias)
-
+    ax.set_yticklabels([])
+    ax.set_title("Gráfico de Teia", va='bottom')
     st.pyplot(fig)
 
-    st.info("🔒 Para usar a versão Premium real, será necessário pagamento futuro.")
+# --------------------------
+# Feedback
+# --------------------------
+st.header("Feedback")
+email = st.text_input("Seu email", value="seuemail@gmail.com")
+mensagem = st.text_area("Mensagem")
 
-# -------------------------------
-# Aba Feedback
-# -------------------------------
-elif aba == "✉️ Feedback":
-    st.title("✉️ Feedback")
-    st.write("Deixe sua opinião sobre o aplicativo!")
-
-    st.write("📧 Contato: **seuemail@exemplo.com**")
-
-    comentario = st.text_area("Escreva seu feedback:")
-    if st.button("Enviar"):
-        st.success("✅ Obrigado pelo feedback!")
-
-    st.subheader("⭐ Reviews de Usuários")
-    st.write("👉 Aqui você poderá adicionar manualmente feedbacks positivos no futuro.")
+if st.button("Enviar Feedback"):
+    if email and mensagem:
+        st.success("Obrigado pelo feedback! ✅")
+    else:
+        st.error("Preencha seu email e mensagem antes de enviar.")
