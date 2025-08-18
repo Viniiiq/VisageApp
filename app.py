@@ -1,90 +1,112 @@
 import streamlit as st
-import matplotlib.pyplot as plt
+from PIL import Image
 import numpy as np
+import plotly.graph_objects as go
+import os
 
-# --------------------------
-# Configuração inicial
-# --------------------------
-st.set_page_config(page_title="VisageApp", layout="centered")
+# --- CONFIGURAÇÕES INICIAIS ---
+st.set_page_config(page_title="BeautyScore", layout="wide")
 
-# --------------------------
-# Tema Claro/Escuro
-# --------------------------
-if "theme" not in st.session_state:
-    st.session_state.theme = "light"
+# --- DIRETÓRIO PARA HISTÓRICO ---
+if not os.path.exists("uploads"):
+    os.makedirs("uploads")
 
-def toggle_theme():
-    st.session_state.theme = "dark" if st.session_state.theme == "light" else "light"
+# --- ESTILOS DE TEMA ---
+theme = st.radio("Escolha o tema:", ["Claro", "Escuro"])
+if theme == "Claro":
+    st.markdown("""
+        <style>
+        body {background-color: #f9f9f9; color: #000000;}
+        </style>
+        """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+        <style>
+        body {background-color: #121212; color: #ffffff;}
+        </style>
+        """, unsafe_allow_html=True)
 
-theme_colors = {
-    "light": {"bg": "#FFFFFF", "text": "#000000"},
-    "dark": {"bg": "#111111", "text": "#FFFFFF"}
-}
+# --- SELEÇÃO DE VERSÃO ---
+st.sidebar.title("Versão do App")
+version = st.sidebar.radio("Escolha sua versão:", ["Gratuita", "Premium"])
 
-st.markdown(
-    f"""
-    <style>
-    body {{ background-color: {theme_colors[st.session_state.theme]['bg']}; color: {theme_colors[st.session_state.theme]['text']}; }}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# --- ABAS ---
+tabs = st.tabs(["Upload", "Análise", "Histórico"])
 
-st.button("Mudar Tema", on_click=toggle_theme)
+# --- MÉTRICAS PREMIUM ---
+premium_metrics = [
+    "Deep-set eyes", "Eye spacing", "Eye size", "Eye symmetry",
+    "Thick eyebrows", "Arch shape", "Eyebrow symmetry",
+    "Nose width", "Nose length", "Nose tip shape", "Nose symmetry",
+    "Lip fullness", "Lip symmetry", "Lip shape",
+    "Jawline definition", "Chin shape", "Jaw symmetry",
+    "Cheekbone prominence", "Cheek symmetry",
+    "Face shape"
+]
 
-# --------------------------
-# Upload da Foto
-# --------------------------
-st.header("Upload da sua foto")
+# --- ABA UPLOAD ---
+with tabs[0]:
+    st.header("Upload de Foto")
+    uploaded_file = st.file_uploader("Envie sua foto", type=["png","jpg","jpeg"])
+    if uploaded_file:
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Sua foto", use_column_width=True)
+        # Salva permanentemente na pasta uploads
+        file_path = os.path.join("uploads", uploaded_file.name)
+        image.save(file_path)
+        st.success("Foto carregada com sucesso!")
 
-uploaded_file = st.file_uploader("Escolha uma foto", type=["png","jpg","jpeg"])
+# --- ABA ANÁLISE ---
+with tabs[1]:
+    st.header("Análise Facial")
+    if uploaded_file:
+        st.subheader(f"Versão: {version}")
+        if version == "Gratuita":
+            st.write("Análise básica: simetria e formato do rosto.")
+            st.progress(80)
+        else:
+            st.write("Análise Premium: métricas detalhadas")
+            # Pontuações simuladas
+            values = [np.random.randint(60,100) for _ in premium_metrics]
 
-if uploaded_file:
-    st.image(uploaded_file, caption="Sua foto", use_column_width=True)
-    
-    # --------------------------
-    # Checar versão
-    # --------------------------
-    premium_user = st.checkbox("Usuário Premium")
+            # Feedback visual com cores: >85 verde, 70-85 amarelo, <70 vermelho
+            st.markdown("### Métricas analisadas:")
+            for metric, val in zip(premium_metrics, values):
+                if val > 85:
+                    color = "green"
+                elif val > 70:
+                    color = "orange"
+                else:
+                    color = "red"
+                st.markdown(f"- {metric}: <span style='color:{color}'>{val}/100</span>", unsafe_allow_html=True)
 
-    # Simulação de processamento de foto:
-    if premium_user:
-        # Valores detalhados para gráfico de teia
-        categorias = ['Simetria', 'Proporção', 'Tom de Pele', 'Sorriso', 'Olhos', 'Cabelo']
-        valores = np.random.randint(50, 100, size=len(categorias))  # aqui você coloca valores reais do processamento
-        st.success("Versão Premium: valores detalhados obtidos!")
+            # --- GRÁFICO DE TEIA ---
+            fig = go.Figure()
+            fig.add_trace(go.Scatterpolar(
+                r=values,
+                theta=premium_metrics,
+                fill='toself',
+                name='Pontuação'
+            ))
+            fig.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0,100])
+                ),
+                showlegend=False,
+                margin=dict(l=30, r=30, t=30, b=30)
+            )
+            st.plotly_chart(fig, use_container_width=True)
     else:
-        # Versão gratuita: apenas uma nota simples
-        categorias = ['Nota']
-        valores = [np.random.randint(60, 90)]  # nota simplificada
-        st.info(f"Versão gratuita: sua nota é {valores[0]}")
+        st.info("Envie uma foto para visualizar a análise.")
 
-    # --------------------------
-    # Gráfico de Teia Seguro
-    # --------------------------
-    N = len(categorias)
-    angulos = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
-    valores_circular = valores + [valores[0]]  # fecha o gráfico
-    angulos_circular = angulos + [angulos[0]]
-
-    fig, ax = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
-    ax.plot(angulos_circular, valores_circular, linewidth=2, linestyle='solid')
-    ax.fill(angulos_circular, valores_circular, alpha=0.25)
-    ax.set_xticks(angulos)
-    ax.set_xticklabels(categorias)
-    ax.set_yticklabels([])
-    ax.set_title("Gráfico de Teia", va='bottom')
-    st.pyplot(fig)
-
-# --------------------------
-# Feedback
-# --------------------------
-st.header("Feedback")
-email = st.text_input("Seu email", value="seuemail@gmail.com")
-mensagem = st.text_area("Mensagem")
-
-if st.button("Enviar Feedback"):
-    if email and mensagem:
-        st.success("Obrigado pelo feedback! ✅")
+# --- ABA HISTÓRICO ---
+with tabs[2]:
+    st.header("Histórico de Uploads")
+    uploaded_images = os.listdir("uploads")
+    if uploaded_images:
+        st.write("Fotos anteriores:")
+        for i, file_name in enumerate(uploaded_images):
+            path = os.path.join("uploads", file_name)
+            st.image(Image.open(path), caption=f"Foto {i+1}: {file_name}", width=150)
     else:
-        st.error("Preencha seu email e mensagem antes de enviar.")
+        st.info("Nenhuma foto no histórico ainda.")
