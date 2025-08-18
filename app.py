@@ -1,116 +1,89 @@
 import streamlit as st
 import numpy as np
-from PIL import Image
-from skimage import filters, transform
+import matplotlib.pyplot as plt
 
-# --------------------------
-# Funções de análise
-# --------------------------
+# -------------------------------
+# Configuração da página
+# -------------------------------
+st.set_page_config(page_title="💎 VisageScore", layout="wide")
 
-def calcular_simetria(img_array):
-    # Corta ao meio e compara esquerda x direita
-    h, w, _ = img_array.shape
-    metade = w // 2
-    esquerda = img_array[:, :metade]
-    direita = np.fliplr(img_array[:, metade:])
-    simetria = np.mean(np.abs(esquerda - direita))
-    return max(0, 100 - simetria)
+# -------------------------------
+# Tema claro/escuro (simples)
+# -------------------------------
+theme = st.sidebar.radio("Tema", ["Claro", "Escuro"])
+if theme == "Escuro":
+    plt.style.use("dark_background")
+else:
+    plt.style.use("default")
 
+# -------------------------------
+# Abas principais
+# -------------------------------
+aba = st.sidebar.radio("Navegação", ["🏠 Principal", "💎 Premium", "✉️ Feedback"])
 
-def calcular_nitidez(img_array):
-    # Usa o gradiente de Sobel como medida de nitidez
-    gray = np.mean(img_array, axis=2)
-    sobel = filters.sobel(gray)
-    return float(np.mean(sobel) * 100)
+# -------------------------------
+# Aba Principal
+# -------------------------------
+if aba == "🏠 Principal":
+    st.title("💎 VisageScore - Versão Gratuita")
+    st.write("Faça upload de uma foto para receber uma análise simples.")
 
-
-def calcular_luminosidade(img_array):
-    # Brilho médio
-    return float(np.mean(img_array) / 2.55)
-
-
-def calcular_proporcoes(img_array):
-    # Aproximação de proporções faciais (sem landmarks)
-    h, w, _ = img_array.shape
-    proporcao_hw = h / w
-    ideal = 1.618  # número áureo
-    score = 100 - (abs(proporcao_hw - ideal) * 100)
-    return max(0, min(score, 100))
-
-
-# --------------------------
-# App Streamlit
-# --------------------------
-
-st.set_page_config(page_title="VisageScore 💎", layout="centered")
-
-st.title("VisageScore 💎")
-st.write("Avalie sua foto com análise de estética facial (versão gratuita e premium).")
-
-aba = st.sidebar.radio("Escolha uma seção:", ["Análise", "Premium (paga)", "Feedback"])
-
-# --------------------------
-# Aba 1: Gratuita
-# --------------------------
-if aba == "Análise":
-    st.header("Versão Gratuita 🟢")
-
-    uploaded_file = st.file_uploader("Envie uma foto (frontal, boa iluminação)", type=["jpg", "jpeg", "png"])
-
+    uploaded_file = st.file_uploader("Envie sua foto", type=["jpg", "jpeg", "png"])
     if uploaded_file:
-        img = Image.open(uploaded_file).convert("RGB")
-        img_array = np.array(img)
+        st.image(uploaded_file, caption="Sua foto", use_column_width=True)
+        st.success("✅ Foto recebida! (Na versão gratuita a análise é limitada.)")
 
-        st.image(img, caption="Foto enviada", use_column_width=True)
+# -------------------------------
+# Aba Premium
+# -------------------------------
+elif aba == "💎 Premium":
+    st.title("💎 VisageScore - Versão Premium")
+    st.write("Aqui estão métricas avançadas baseadas em estética facial:")
 
-        # Análises básicas
-        sim = calcular_simetria(img_array)
-        nit = calcular_nitidez(img_array)
-        lum = calcular_luminosidade(img_array)
+    # Exemplo de valores fictícios (0 a 10)
+    metricas = {
+        "Canthal Tilt": 7,
+        "Jawline": 8,
+        "Cheekbones": 6,
+        "Eye Spacing": 7,
+        "Facial Symmetry": 9,
+        "Skin Quality": 8
+    }
 
-        st.subheader("Resultados:")
-        st.write(f"🔹 **Simetria facial**: {sim:.2f}/100")
-        st.write(f"🔹 **Nitidez da imagem**: {nit:.2f}/100")
-        st.write(f"🔹 **Luminosidade**: {lum:.2f}/100")
+    categorias = list(metricas.keys())
+    valores = list(metricas.values())
 
-        score = (sim + nit + lum) / 3
-        st.success(f"💡 Sua nota estética (versão gratuita): **{score:.2f}/100**")
+    # Fechar o gráfico no círculo
+    valores += valores[:1]
+    categorias += categorias[:1]
 
-# --------------------------
-# Aba 2: Premium
-# --------------------------
-elif aba == "Premium (paga)":
-    st.header("Versão Premium 🔵")
+    # Radar chart
+    angulos = np.linspace(0, 2 * np.pi, len(categorias), endpoint=False).tolist()
+    angulos += angulos[:1]
 
-    st.info("🔒 Área Premium: desbloqueie análises avançadas após pagamento.")
+    fig, ax = plt.subplots(figsize=(6,6), subplot_kw=dict(polar=True))
+    ax.plot(angulos, valores, linewidth=2, linestyle='solid')
+    ax.fill(angulos, valores, alpha=0.25)
 
-    uploaded_file = st.file_uploader("Envie uma foto para análise avançada", type=["jpg", "jpeg", "png"])
+    ax.set_xticks(angulos[:-1])
+    ax.set_xticklabels(categorias)
 
-    if uploaded_file:
-        img = Image.open(uploaded_file).convert("RGB")
-        img_array = np.array(img)
+    st.pyplot(fig)
 
-        st.image(img, caption="Foto enviada", use_column_width=True)
+    st.info("🔒 Para usar a versão Premium real, será necessário pagamento futuro.")
 
-        # Análises premium
-        sim = calcular_simetria(img_array)
-        nit = calcular_nitidez(img_array)
-        lum = calcular_luminosidade(img_array)
-        prop = calcular_proporcoes(img_array)
+# -------------------------------
+# Aba Feedback
+# -------------------------------
+elif aba == "✉️ Feedback":
+    st.title("✉️ Feedback")
+    st.write("Deixe sua opinião sobre o aplicativo!")
 
-        st.subheader("Resultados Premium:")
-        st.write(f"🔹 **Simetria facial**: {sim:.2f}/100")
-        st.write(f"🔹 **Nitidez da imagem**: {nit:.2f}/100")
-        st.write(f"🔹 **Luminosidade**: {lum:.2f}/100")
-        st.write(f"🔹 **Proporções faciais (áurea)**: {prop:.2f}/100")
+    st.write("📧 Contato: **seuemail@exemplo.com**")
 
-        score = (sim + nit + lum + prop) / 4
-        st.success(f"💎 Sua nota estética premium: **{score:.2f}/100**")
+    comentario = st.text_area("Escreva seu feedback:")
+    if st.button("Enviar"):
+        st.success("✅ Obrigado pelo feedback!")
 
-# --------------------------
-# Aba 3: Feedback
-# --------------------------
-elif aba == "Feedback":
-    st.header("Feedback 📝")
-    st.write("📧 Entre em contato: **seuemail@exemplo.com**")
-    st.write("⭐ Deixe aqui sua opinião! (em breve reviews serão exibidas)")
+    st.subheader("⭐ Reviews de Usuários")
+    st.write("👉 Aqui você poderá adicionar manualmente feedbacks positivos no futuro.")
